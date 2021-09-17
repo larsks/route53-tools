@@ -1,0 +1,38 @@
+- name: "Manage zone {{ zone.origin }}"
+  hosts: localhost
+  gather_facts: false
+  collections:
+    - community.aws
+  tasks:
+    - name: "Ensure zone {{ zone.origin }}"
+      route53_zone:
+        zone: "{{ zone.origin }}"
+
+{% for node in zone.items() %}
+{% set name = node[0] %}
+{% set data = node[1] %}
+{% for rdataset in data.rdatasets %}
+{% if rdataset.rdtype.name == "SOA" or
+(name|string in ["@", zone.origin] and rdataset.rdtype.name == 'NS') %}
+{% continue %}
+{% endif %}
+    - name: "Ensure record {{ name }} {{ rdataset.rdtype.name }}"
+      route53:
+        state: present
+        overwrite: true
+        zone: "{{ zone.origin }}"
+    {% if name|string == "@" %}
+        record: "{{ zone.origin }}"
+    {% else %}
+        record: "{{ name }}.{{ zone.origin }}"
+    {% endif %}
+        type: "{{ rdataset.rdtype.name }}"
+        ttl: "{{ rdataset.ttl }}"
+        value:
+{% for rdata in rdataset %}
+          - >-
+            {{ rdata }}
+{% endfor %}
+
+{% endfor %}
+{% endfor %}
